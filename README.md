@@ -46,5 +46,5 @@ Detail alokasi IP selengkapnya: [`docs/design/ip_plan.md`](docs/design/ip_plan.m
 **Blue Team** memantau aktivitas jaringan melalui Security Onion untuk mendeteksi aktivitas pengujian Red Team.
 
 ## Struktur Design
-- `docs/design/topology.png` — diagram topologi jaringan
-- `docs/design/ip_plan.md` — perencanaan IP Address dan OS setiap node
+- [`docs/design/topology.png`](docs/design/topology.png) — diagram topologi jaringan
+- [`docs/design/ip_plan.md`](docs/design/ip_plan.md) — perencanaan IP Address dan OS setiap node
