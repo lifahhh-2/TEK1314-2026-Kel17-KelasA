@@ -5,7 +5,7 @@ Daftar kontrol keamanan (*hardening*) minimum yang diterapkan pada Target Node (
 | Kategori | Kontrol Hardening | Target Service | Status | Bukti File di GitHub |
 | :--- | :--- | :--- | :--- | :--- |
 | **A. Access & Auth** | Nonaktifkan login password & Wajibkan SSH Key Auth (`PasswordAuthentication no`) | OpenSSH Server | **Sudah** | [SSH_key_auth.jpeg](evidence/SSH_key_auth.jpeg) |
-| **A. Access & Auth** | Nonaktifkan `PermitRootLogin` & pasang `Fail2ban` | OpenSSH Server | **Sudah** | [Permitrootlogin.jpe](evidence/Permitrootlogin.jpeg) |
+| **A. Access & Auth** | Nonaktifkan `PermitRootLogin` & pasang `Fail2ban` | OpenSSH Server | **Sudah** | [Permitrootlogin.jpeg](evidence/Permitrootlogin.jpeg) |
 | **B. Service & Surface** | Konfigurasi Firewall UFW (Whitelist port 22, 80, 443, 1883 dari `192.168.17.0/24`) | UFW Firewall | **Sudah** | [Ufw_status.jpeg](evidence/Ufw_status.jpeg) |
 | **B. Service & Surface** | Sembunyikan identitas versi Nginx (`server_tokens off`)[cite: 4] | Nginx Web Server | **Sudah** | [Nginx_tokens.jpeg](evidence/Nginx_tokens.jpeg) |
 | **B. Service & Surface** | Terapkan Nginx Rate Limiting pada endpoint API[cite: 4] | Nginx Web Server | **Belum** | [](evidence/rate_limit.png) |
