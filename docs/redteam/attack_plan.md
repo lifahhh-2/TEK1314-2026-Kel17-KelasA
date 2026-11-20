@@ -36,10 +36,12 @@ Rencana pengujian penetrasi dan simulasi serangan Red Team menyasar Target Node 
 - **Bukti Eksekusi:** 
   <br>
   **Hasil WhatWeb:**
-  ![Hasil WhatWeb](evidence/whatweb_scan.jpeg)
+  ![Hasil WhatWeb](evidence/skenario3_whatweb_scan.jpeg)
   <br>
   **Hasil Nikto:**
-  ![Hasil Nikto](evidence/nikto_scan.jpeg)
+  ![Hasil Nikto](evidence/skenario3_nikto_scan.jpeg)
   <br>
   **Hasil cURL env:**
-  ![Hasil cURL env](evidence/curl_env.jpeg)
+  ![Hasil cURL env](evidence/skenario3_curl_env.jpeg)
+  **Hasil WhatWeb - HTTP Headers:**
+![Hasil WhatWeb - HTTP Headers](evidence/skenario3_whatweb-headers.jpeg)
