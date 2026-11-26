@@ -10,8 +10,8 @@
 
 ## Ringkasan Alur Bukti (Before & After Hardening)
 
-- **Bukti Red Team (`redteam/evidence/`):** Output pengujian serangan / *re-test* `curl` dari sisi penyerang.
-- **Bukti Blue Team (`blueteam/evidence/`):** Log Nginx (`/var/log/nginx/access.log` dan `/var/log/nginx/roborace_access.log`), tangkapan paket Wireshark pada `eth0`, serta langkah konfigurasi *hardening* pada aplikasi Laravel dan Nginx.
+- **Bukti Red Team (`docs/redteam/evidence/`):** Output pengujian serangan / *re-test* `curl` dari sisi penyerang.
+- **Bukti Blue Team (`docs/blueteam/evidence/`):** Log Nginx (`/var/log/nginx/access.log` dan `/var/log/nginx/roborace_access.log`), tangkapan paket Wireshark pada `eth0`, serta langkah konfigurasi *hardening* pada aplikasi Laravel, PHP/Apache, dan Nginx.
 
 ---
 
@@ -97,5 +97,31 @@
   - [wireshark_openredirect_hostreflection_via_requestline.jpg](blueteam/evidence/wireshark_openredirect_hostreflection_via_requestline.jpg) — *Capture Wireshark pada eth0 Saat PoC Item #3 (TLSv1.3 Terenkripsi)*
 
 ### B. After Hardening & Re-Test
-- *Menunggu bukti konfigurasi mitigasi dan hasil uji ulang (re-test) pasca-hardening untuk Item #3.*
-````[cite: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39]
+- **Mitigasi Blue Team:**
+  - Memperketat `/etc/nginx/sites-available/roborace` dengan pengecekan `if ($host != "192.168.17.5") { return 400; }`, menetapkan `proxy_set_header Host 192.168.17.5;`, menyembunyikan `X-Powered-By`, menambahkan *security headers* (`X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, `Content-Security-Policy`), serta memuat ulang Nginx setelah `nginx -t`.
+  - Membatasi `allowed_origins` pada `config/cors.php` ke `https://192.168.17.5` dan menambahkan `SESSION_SECURE_COOKIE=true` pada `.env`.
+  - Menerapkan *hardening* pada `Dockerfile` serta konfigurasi PHP (`expose_php=Off`, `display_errors=Off`, `display_startup_errors=Off`, `log_errors=On`) dan Apache (`ServerTokens Prod`, `ServerSignature Off`), diikuti *rebuild* kontainer serta `artisan optimize:clear` dan `artisan config:cache`.
+- **Hasil Re-Test:** Saat diuji ulang dengan `--request-target "http://100.100.100.200/latest/meta-data/"`, server menolak permintaan dengan status **`400 Bad Request`** (tidak lagi melakukan *redirect* `301` ke `100.100.100.200`) dan menyertakan *header* keamanan tambahan. Log `roborace_access.log` mencatat status `400` pada `06:15:31`–`06:18:56`, dan paket jaringan pada `eth0` tetap tampak sebagai sesi `TLSv1.3` terenkripsi.
+- **Bukti Red Team:**
+  - [open_redirect&host_reflection_evidence.jpg](redteam/evidence/open_redirect&host_reflection_evidence.jpg) — *Re-Test Open Redirect & Host Reflection via curl – Respons 400 Bad Request (After Hardening)*
+- **Bukti Blue Team:**
+  - Konfigurasi Nginx, CORS, & Session (`tahap1` s.d. `tahap55`):
+    [hardening_openredirect_tahap1.jpg](blueteam/evidence/hardening_openredirect_tahap1.jpg) ·
+    [hardening_openredirect_tahap2.jpg](blueteam/evidence/hardening_openredirect_tahap2.jpg) ·
+    [hardening_openredirect_tahap_2.jpg](blueteam/evidence/hardening_openredirect_tahap_2.jpg) ·
+    [hardening_openredirect_tahap3.jpg](blueteam/evidence/hardening_openredirect_tahap3.jpg) ·
+    [hardening_openredirect_tahap4.jpg](blueteam/evidence/hardening_openredirect_tahap4.jpg) ·
+    [hardening_openredirect_tahap55.jpg](blueteam/evidence/hardening_openredirect_tahap55.jpg)
+  - Hardening Dockerfile, PHP/Apache, Rebuild, & Verifikasi (`tahap6` s.d. `tahap10`):
+    [hardening_openredirect_tahap_6.jpg](blueteam/evidence/hardening_openredirect_tahap_6.jpg) ·
+    [hardening_openredirect_tahap6.jpg](blueteam/evidence/hardening_openredirect_tahap6.jpg) ·
+    [hardening_openredirect_tahap7.jpg](blueteam/evidence/hardening_openredirect_tahap7.jpg) ·
+    [hardening_openredirect_tahap7_2.jpg](blueteam/evidence/hardening_openredirect_tahap7_2.jpg) ·
+    [hardening_openredirect_tahap8.jpg](blueteam/evidence/hardening_openredirect_tahap8.jpg) ·
+    [hardening_openredirect_tahap9.jpg](blueteam/evidence/hardening_openredirect_tahap9.jpg) ·
+    [hardening_openredirect_tahap10.jpg](blueteam/evidence/hardening_openredirect_tahap10.jpg)
+  - [open_redirect&host_reflection_evidence_2.jpg](blueteam/evidence/open_redirect&host_reflection_evidence_2.jpg) — *Log roborace_access.log Menunjukkan Status 400 Saat Re-Test Item #3 (After Hardening)*
+  - [wireshark_hardening_openredirect.jpg](blueteam/evidence/wireshark_hardening_openredirect.jpg) — *Capture Wireshark pada eth0 Saat Re-Test Item #3 (After Hardening, 06:18:56)*
+````[cite: 38, 39, 40, 41, 42, 43]
+
+Sebelum di-*commit*, pastikan saja nama file di folder `docs/blueteam/evidence/` dan `docs/redteam/evidence/` sama persis dengan *link* di atas (terutama file yang sempat punya nama mirip seperti `hardening_openredirect_tahap6.jpg` vs `hardening_openredirect_tahap_6.jpg` dan `hardening_openredirect_tahap55.jpg`)[cite: 38, 43].
