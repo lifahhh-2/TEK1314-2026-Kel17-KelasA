@@ -8,118 +8,38 @@
 
 ---
 
-## Ringkasan Alur Bukti (Before & After Hardening)
-
-- **Bukti Red Team (`docs/redteam/evidence/`):** Output pengujian serangan / *re-test* `curl` dari sisi penyerang.
-- **Bukti Blue Team (`docs/blueteam/evidence/`):** Log Nginx (`/var/log/nginx/access.log` dan `/var/log/nginx/roborace_access.log`), tangkapan paket Wireshark pada `eth0`, serta langkah konfigurasi *hardening* pada aplikasi Laravel, PHP/Apache, dan Nginx.
-
----
-
 ## Item #1 – Host Header Injection (`X-Forwarded-Host`)
 
-### A. Before Hardening
-- **Aksi Red Team:** Mengirimkan *request* `curl -sk -H "X-Forwarded-Host: evil.com" https://192.168.17.5 | grep "evil.com"`.
-- **Hasil Serangan:** URL aset dan tautan navigasi aplikasi (`/events`, `/challenges`, `/leaderboard`, `/login`, `/register`, dll.) terpantul mengarah ke `evil.com`.
-- **Bukti Red Team:**
-  - [host_header_injection.jpg](redteam/evidence/host_header_injection.jpg) — *PoC Host Header Injection via X-Forwarded-Host: evil.com (Before Hardening)*
-- **Bukti Blue Team:**
-  - [deteksi_host_header_injection.jpg](blueteam/evidence/deteksi_host_header_injection.jpg) — *Log Kustom roborace_access.log Menangkap Field xfh="evil.com" (Before Hardening)* (`27/Nov/2026:02:31:15`–`02:31:39`, `192.168.17.100`, status `200`, `host="192.168.17.5"`, `xfh="evil.com"`)
-  - [wireshark_host_header_injection.jpg](blueteam/evidence/wireshark_host_header_injection.jpg) — *Capture Wireshark pada eth0 Saat PoC Item #1 (TLSv1.3 Terenkripsi)*
-
-### B. After Hardening & Re-Test
-- **Mitigasi Blue Team:**
-  - Membatasi `trustProxies` pada `bootstrap/app.php` ke proxy tepercaya (`127.0.0.1`, `172.16.0.0/12`) dengan header `HEADER_X_FORWARDED_FOR | HEADER_X_FORWARDED_PROTO`, lalu *rebuild* kontainer serta menjalankan `artisan optimize:clear` dan `artisan config:cache`.
-  - Memperbarui `/etc/nginx/sites-available/roborace` agar `X-Forwarded-For` menggunakan `$remote_addr` dan mengosongkan `X-Forwarded-Host` serta `X-Forwarded-Port` (`""`), kemudian memverifikasi `nginx -t` dan memuat ulang Nginx.
-- **Hasil Re-Test:** Saat diuji ulang dengan `X-Forwarded-Host: evil.com`, referensi `evil.com` tidak lagi muncul pada respons dan aset kembali mengarah ke `https://192.168.17.5/...`. Upaya penyisipan `xfh="evil.com"` tetap tercatat di `roborace_access.log`, sementara paket jaringan di `eth0` tetap tampak sebagai sesi `TLSv1.3` terenkripsi.
-- **Bukti Red Team:**
-  - [hardening_hostheaderinjection_evidence.jpg](redteam/evidence/hardening_hostheaderinjection_evidence.jpg) — *Re-Test Host Header Injection via curl dengan X-Forwarded-Host: evil.com (After Hardening)*
-- **Bukti Blue Team:**
-  - Tahapan Hardening Laravel & Nginx (`tahap1` s.d. `tahap7`):
-    [hardening_hostheaderinjection_tahap1.jpg](blueteam/evidence/hardening_hostheaderinjection_tahap1.jpg) ·
-    [hardening_hostheaderinjection_tahap2.jpg](blueteam/evidence/hardening_hostheaderinjection_tahap2.jpg) ·
-    [hardening_hostheaderinjection_tahap3.jpg](blueteam/evidence/hardening_hostheaderinjection_tahap3.jpg) ·
-    [hardening_hostheaderinjection_tahap4.jpg](blueteam/evidence/hardening_hostheaderinjection_tahap4.jpg) ·
-    [hardening_hostheaderinjection_tahap5.jpg](blueteam/evidence/hardening_hostheaderinjection_tahap5.jpg) ·
-    [hardening_hostheaderinjection_tahap6.jpg](blueteam/evidence/hardening_hostheaderinjection_tahap6.jpg) ·
-    [hardening_hostheaderinjection_tahap7.jpg](blueteam/evidence/hardening_hostheaderinjection_tahap7.jpg)
-  - [hardening_hostheaderinjection_evidence2.jpg](blueteam/evidence/hardening_hostheaderinjection_evidence2.jpg) — *Log roborace_access.log Saat Re-Test Item #1 (After Hardening)*
-  - [wireshark_hardening_hostheaderinjection_evidence.jpg](blueteam/evidence/wireshark_hardening_hostheaderinjection_evidence.jpg) — *Capture Wireshark pada eth0 Saat Re-Test Item #1 (After Hardening, 05:34:56)*
-  - [wireshark_hardening_hostheaderinjection_evidence2.jpg](blueteam/evidence/wireshark_hardening_hostheaderinjection_evidence2.jpg) — *Capture Wireshark pada eth0 Saat Re-Test Item #1 (After Hardening, 05:35:10)*
+| Tahap | Red Team | Blue Team | Bukti |
+| :--- | :--- | :--- | :--- |
+| **1. Serang (Baseline)** | Mengeksekusi `curl -sk -H "X-Forwarded-Host: evil.com" https://192.168.17.5 \| grep "evil.com"` pada kondisi *baseline* sebelum *hardening*. Hasil: URL aset dan tautan navigasi (`/events`, `/challenges`, `/leaderboard`, `/login`, `/register`, dll.) terpantul mengarah ke `evil.com`. | Mengamati apakah permintaan dan penyisipan *header* tercatat di log aplikasi/*reverse proxy* dan *capture* jaringan pada `eth0`. | Red Team: [host_header_injection.jpg](redteam/evidence/host_header_injection.jpg)<br>Blue Team: [wireshark_host_header_injection.jpg](blueteam/evidence/wireshark_host_header_injection.jpg) *(TLSv1.3 terenkripsi)* |
+| **2. Deteksi** | — | Mengidentifikasi jejak pada log kustom Nginx (`/var/log/nginx/roborace_access.log`) yang menangkap *field* `xfh="evil.com"` (`27/Nov/2026:02:31:15`–`02:31:39`, `192.168.17.100`, status `200`, `host="192.168.17.5"`). Belum ada *alert* otomatis dari *dashboard* Security Onion; *payload* di Wireshark tidak terbaca karena TLS 1.3. | Blue Team: [deteksi_host_header_injection.jpg](blueteam/evidence/deteksi_host_header_injection.jpg) |
+| **3. Analisis** | Menguji *header* `X-Forwarded-Host` untuk melihat apakah aplikasi memantulkan *host* tak tepercaya ke tautan/aset respons HTTP. | *Root cause*: Nginx meneruskan `X-Forwarded-Host` tanpa dibersihkan dan Laravel (`trustProxies('*')`) mempercayai *proxy* tak tepercaya saat membangun URL absolut. Kontrol yang kurang: pembatasan daftar *proxy* tepercaya dan pembersihan *header* `X-Forwarded-Host`/`X-Forwarded-Port` di *reverse proxy*. | Catatan analisis di `Incident_Report_Final_NIST_SP800-61r2_Kelompok17_5.docx` (Bagian 4.3 & 4.3.1) |
+| **4. Respons (Mitigasi)** | — | Membatasi `trustProxies` di `bootstrap/app.php` ke `['127.0.0.1', '172.16.0.0/12']` dengan `HEADER_X_FORWARDED_FOR \| HEADER_X_FORWARDED_PROTO`, *rebuild* kontainer `app`, menjalankan `artisan optimize:clear` & `artisan config:cache`, serta mengatur `X-Forwarded-For $remote_addr` dan mengosongkan `X-Forwarded-Host ""` & `X-Forwarded-Port ""` di `/etc/nginx/sites-available/roborace` lalu `nginx -t` & *reload*. | Blue Team: [hardening_hostheaderinjection_tahap1.jpg](blueteam/evidence/hardening_hostheaderinjection_tahap1.jpg) · [hardening_hostheaderinjection_tahap2.jpg](blueteam/evidence/hardening_hostheaderinjection_tahap2.jpg) · [hardening_hostheaderinjection_tahap3.jpg](blueteam/evidence/hardening_hostheaderinjection_tahap3.jpg) · [hardening_hostheaderinjection_tahap4.jpg](blueteam/evidence/hardening_hostheaderinjection_tahap4.jpg) · [hardening_hostheaderinjection_tahap5.jpg](blueteam/evidence/hardening_hostheaderinjection_tahap5.jpg) · [hardening_hostheaderinjection_tahap6.jpg](blueteam/evidence/hardening_hostheaderinjection_tahap6.jpg) · [hardening_hostheaderinjection_tahap7.jpg](blueteam/evidence/hardening_hostheaderinjection_tahap7.jpg) |
+| **5. Verifikasi** | Mengulangi PoC yang sama (`curl -sk -H "X-Forwarded-Host: evil.com" https://192.168.17.5 \| grep "evil.com"`) setelah mitigasi. Hasil: *output* `evil.com` kosong dan aset tetap mengarah ke `https://192.168.17.5/...`. | Mengonfirmasi serangan gagal memanipulasi URL; `roborace_access.log` tetap mencatat *request* (`xfh="evil.com"`, status `200`, `05:34:56` & `05:35:10`), sementara Wireshark di `eth0` hanya menampilkan sesi `TLSv1.3` terenkripsi. | Red Team: [hardening_hostheaderinjection_evidence.jpg](redteam/evidence/hardening_hostheaderinjection_evidence.jpg)<br>Blue Team: [hardening_hostheaderinjection_evidence2.jpg](blueteam/evidence/hardening_hostheaderinjection_evidence2.jpg) · [wireshark_hardening_hostheaderinjection_evidence.jpg](blueteam/evidence/wireshark_hardening_hostheaderinjection_evidence.jpg) · [wireshark_hardening_hostheaderinjection_evidence2.jpg](blueteam/evidence/wireshark_hardening_hostheaderinjection_evidence2.jpg) |
 
 ---
 
-## Item #2 – Laravel Debug Mode Aktif
+## Item #2 – Laravel Debug Mode Aktif (`APP_DEBUG=true`)
 
-### A. Before Hardening
-- **Aksi Red Team:** Mengirimkan *request* `curl -sk -i https://192.168.17.5/api/jsonws/index.jsp` ke *endpoint* yang tidak ada.
-- **Hasil Serangan:** Server mengembalikan status `404 Not Found` (JSON) beserta *stack trace* lengkap Laravel (termasuk *path* `/var/www/html/vendor/...` dan urutan *middleware*) karena *debug mode* masih aktif.
-- **Bukti Red Team:**
-  - PoC Laravel Debug Mode Aktif (`aktif1` s.d. `aktif6`):
-    [laravel_debug_aktif1.jpg](redteam/evidence/laravel_debug_aktif1.jpg) ·
-    [laravel_debug_aktif2.jpg](redteam/evidence/laravel_debug_aktif2.jpg) ·
-    [laravel_debug_aktif3.jpg](redteam/evidence/laravel_debug_aktif3.jpg) ·
-    [laravel_debug_aktif4.jpg](redteam/evidence/laravel_debug_aktif4.jpg) ·
-    [laravel_debug_aktif5.jpg](redteam/evidence/laravel_debug_aktif5.jpg) ·
-    [laravel_debug_aktif6.jpg](redteam/evidence/laravel_debug_aktif6.jpg)
-- **Bukti Blue Team:**
-  - [enampercobaan.jpg](blueteam/evidence/enampercobaan.jpg) — *Log Nginx (/var/log/nginx/access.log) – 6x Percobaan Akses /api/jsonws/index.jsp dari 192.168.17.100 (Before Hardening)*
-  - [wireshark_laraveldebug.jpg](blueteam/evidence/wireshark_laraveldebug.jpg) — *Capture Wireshark pada eth0 Saat PoC Item #2 (TLSv1.3 Terenkripsi)*
-
-### B. After Hardening & Re-Test
-- **Mitigasi Blue Team:**
-  - Mengubah konfigurasi `.env` dari `APP_ENV=local`, `APP_DEBUG=true`, `LOG_LEVEL=debug` menjadi `APP_ENV=production`, `APP_DEBUG=false`, dan `LOG_LEVEL=error`.
-  - Memeriksa konfigurasi `bootstrap/app.php`, melakukan *rebuild* kontainer `app`, menjalankan `artisan optimize:clear` dan `artisan config:cache`, serta memastikan `artisan about --only=environment` menunjukkan `Environment: production` dan `Debug Mode: OFF`.
-- **Hasil Re-Test:** Permintaan `curl -sk -i https://192.168.17.5/api/jsonws/index.jsp` mengembalikan `404 Not Found` dengan *body* ringkas `{"message":"Resource not found."}` tanpa *stack trace*. Akses tetap tercatat pada `roborace_access.log` (status `404`), dan lalu lintas pada `eth0` tetap terenkripsi `TLSv1.3`.
-- **Bukti Red Team:**
-  - [hardening_laravel_debug_evidence.jpg](redteam/evidence/hardening_laravel_debug_evidence.jpg) — *Re-Test Laravel Debug Mode Nonaktif – Respons 404 JSON Tanpa Stack Trace (After Hardening)*
-- **Bukti Blue Team:**
-  - Tahapan Hardening & Verifikasi Environment Laravel (`tahap1` s.d. `tahap6`):
-    [hardening_laravel_debug_tahap1.jpg](blueteam/evidence/hardening_laravel_debug_tahap1.jpg) ·
-    [hardening_laravel_debug_tahap2.jpg](blueteam/evidence/hardening_laravel_debug_tahap2.jpg) ·
-    [hardening_laravel_debug_tahap3.jpg](blueteam/evidence/hardening_laravel_debug_tahap3.jpg) ·
-    [hardening_laravel_debug_tahap4.jpg](blueteam/evidence/hardening_laravel_debug_tahap4.jpg) ·
-    [hardening_laravel_debug_tahap5.jpg](blueteam/evidence/hardening_laravel_debug_tahap5.jpg) ·
-    [hardening_laravel_debug_tahap6.jpg](blueteam/evidence/hardening_laravel_debug_tahap6.jpg)
-  - [hardening_laravel_debug_evidence2.jpg](blueteam/evidence/hardening_laravel_debug_evidence2.jpg) — *Log roborace_access.log Saat Re-Test Item #2 (After Hardening)*
-  - [wireshark_hardening_laravel_debug_evidence.jpg](blueteam/evidence/wireshark_hardening_laravel_debug_evidence.jpg) — *Capture Wireshark pada eth0 Saat Re-Test Item #2 (After Hardening)*
+| Tahap | Red Team | Blue Team | Bukti |
+| :--- | :--- | :--- | :--- |
+| **1. Serang (Baseline)** | Mengirimkan *request* ke *endpoint* yang tidak ada (`curl -sk -i https://192.168.17.5/api/jsonws/index.jsp`). Hasil: server mengembalikan `404 Not Found` (JSON) beserta *stack trace* lengkap Laravel (*path* `/var/www/html/vendor/...` dan jejak *middleware*). | Mengamati log *web server* dan lalu lintas jaringan pada `eth0` saat *probing* *endpoint* berlangsung. | Red Team: [laravel_debug_aktif1.jpg](redteam/evidence/laravel_debug_aktif1.jpg) · [laravel_debug_aktif2.jpg](redteam/evidence/laravel_debug_aktif2.jpg) · [laravel_debug_aktif3.jpg](redteam/evidence/laravel_debug_aktif3.jpg) · [laravel_debug_aktif4.jpg](redteam/evidence/laravel_debug_aktif4.jpg) · [laravel_debug_aktif5.jpg](redteam/evidence/laravel_debug_aktif5.jpg) · [laravel_debug_aktif6.jpg](redteam/evidence/laravel_debug_aktif6.jpg)<br>Blue Team: [wireshark_laraveldebug.jpg](blueteam/evidence/wireshark_laraveldebug.jpg) *(TLSv1.3 terenkripsi)* |
+| **2. Deteksi** | — | Mengidentifikasi 6 kali percobaan `GET /api/jsonws/index.jsp` dari `192.168.17.100` (`curl/8.22.0`, status `404`, ukuran `9268` byte) di `/var/log/nginx/access.log`. Isi *stack trace* tidak tampak dari metadata log saja dan belum ada *alert* otomatis Security Onion. | Blue Team: [enampercobaan.jpg](blueteam/evidence/enampercobaan.jpg) |
+| **3. Analisis** | Menguji *endpoint* tak terdaftar untuk mengecek apakah respons *error* membocorkan informasi internal aplikasi/framework. | *Root cause*: `APP_DEBUG=true` dan `APP_ENV=local` pada `.env` menyebabkan detail *exception* dan *path* internal Laravel ikut dirender pada respons *error*. Kontrol yang kurang: pengaturan *production* (`APP_DEBUG=false`) dan *handler* respons *error* generik. | Catatan analisis di `Incident_Report_Final_NIST_SP800-61r2_Kelompok17_5.docx` (Bagian 4.3 & 4.3.1) |
+| **4. Respons (Mitigasi)** | — | Mengubah `.env` menjadi `APP_ENV=production`, `APP_DEBUG=false`, dan `LOG_LEVEL=error`, menambahkan *handler* `NotFoundHttpException` pada `bootstrap/app.php` untuk mengembalikan JSON generik `{"message":"Resource not found."}` (`404`), melakukan *rebuild* kontainer `app`, menjalankan `artisan optimize:clear` & `artisan config:cache`, serta memverifikasi `artisan about --only=environment` (`Environment: production`, `Debug Mode: OFF`). | Blue Team: [hardening_laravel_debug_tahap1.jpg](blueteam/evidence/hardening_laravel_debug_tahap1.jpg) · [hardening_laravel_debug_tahap2.jpg](blueteam/evidence/hardening_laravel_debug_tahap2.jpg) · [hardening_laravel_debug_tahap3.jpg](blueteam/evidence/hardening_laravel_debug_tahap3.jpg) · [hardening_laravel_debug_tahap4.jpg](blueteam/evidence/hardening_laravel_debug_tahap4.jpg) · [hardening_laravel_debug_tahap5.jpg](blueteam/evidence/hardening_laravel_debug_tahap5.jpg) · [hardening_laravel_debug_tahap6.jpg](blueteam/evidence/hardening_laravel_debug_tahap6.jpg) |
+| **5. Verifikasi** | Mengulangi `curl -sk -i https://192.168.17.5/api/jsonws/index.jsp` setelah mitigasi. Hasil: tetap `404 Not Found`, tetapi *body* hanya `{"message":"Resource not found."}` tanpa *stack trace* maupun *path* internal. | Mengonfirmasi kebocoran *stack trace* telah tertutup; permintaan tetap tercatat di `roborace_access.log` (status `404`, `05:10:51`), sementara paket di `eth0` tetap terenkripsi `TLSv1.3`. | Red Team: [hardening_laravel_debug_evidence.jpg](redteam/evidence/hardening_laravel_debug_evidence.jpg)<br>Blue Team: [hardening_laravel_debug_evidence2.jpg](blueteam/evidence/hardening_laravel_debug_evidence2.jpg) · [wireshark_hardening_laravel_debug_evidence.jpg](blueteam/evidence/wireshark_hardening_laravel_debug_evidence.jpg) |
 
 ---
 
 ## Item #3 – Open Redirect & Host Reflection via Request-Line
 
-### A. Before Hardening
-- **Aksi Red Team:** Mengirimkan `curl -sk -i --request-target "http://100.100.100.200/latest/meta-data/" https://192.168.17.5`.
-- **Hasil Serangan:** Server mengembalikan `301 Moved Permanently` dengan header `Location: http://100.100.100.200/latest/meta-data/` serta *body* HTML yang memantulkan target tujuan.
-- **Bukti Red Team:**
-  - [openredirect_hostreflection_via_requestline.jpg](redteam/evidence/openredirect_hostreflection_via_requestline.jpg) — *PoC Open Redirect & Host Reflection via Request-Line ke 100.100.100.200 (Before Hardening)*
-- **Bukti Blue Team:**
-  - [deteksi_openredirect_hostreflection.jpg](blueteam/evidence/deteksi_openredirect_hostreflection.jpg) — *Log Kustom roborace_access.log Menangkap Perubahan Field host="100.100.100.200" (Before Hardening)*
-  - [wireshark_openredirect_hostreflection_via_requestline.jpg](blueteam/evidence/wireshark_openredirect_hostreflection_via_requestline.jpg) — *Capture Wireshark pada eth0 Saat PoC Item #3 (TLSv1.3 Terenkripsi)*
+| Tahap | Red Team | Blue Team | Bukti |
+| :--- | :--- | :--- | :--- |
+| **1. Serang (Baseline)** | Mengirimkan `curl -sk -i --request-target "http://100.100.100.200/latest/meta-data/" https://192.168.17.5`. Hasil: server mengembalikan `301 Moved Permanently` dengan `Location: http://100.100.100.200/latest/meta-data/` serta membocorkan `Apache/2.4.71 (Debian)`. | Mengamati log Nginx dan *capture* paket jaringan pada `eth0` saat *request-line* absolut dikirimkan. | Red Team: [openredirect_hostreflection_via_requestline.jpg](redteam/evidence/openredirect_hostreflection_via_requestline.jpg)<br>Blue Team: [wireshark_openredirect_hostreflection_via_requestline.jpg](blueteam/evidence/wireshark_openredirect_hostreflection_via_requestline.jpg) *(TLSv1.3 terenkripsi)* |
+| **2. Deteksi** | — | Mengidentifikasi pada `roborace_access.log` bahwa *field* `host` berubah menjadi `"100.100.100.200"` (`xfh="-"`), berbeda dari *request* normal (`host="192.168.17.5"`). Belum ada *alert* otomatis dari *dashboard* Security Onion. | Blue Team: [deteksi_openredirect_hostreflection.jpg](blueteam/evidence/deteksi_openredirect_hostreflection.jpg) |
+| **3. Analisis** | Menguji *absolute-form request-line* menuju target eksternal (`100.100.100.200`) untuk melihat apakah terjadi *open redirect* atau pantulan *host*. | *Root cause*: Nginx mengambil `$host` dari *request-line*/header tanpa validasi *host* yang sah serta meneruskan `Host $host` / *redirect* berbasis `$host`. Kontrol yang kurang: validasi eksplisit `$host != "192.168.17.5"`, paksaan `Host 192.168.17.5`, serta penguatan lapisan *web/container*. \vert{} Catatan analisis di `Incident_Report_Final_NIST_SP800-61r2_Kelompok17_5.docx` (Bagian 4.3 & 4.3.1) \vert{} \vert{} **4. Respons (Mitigasi)** \vert{} — \vert{} Menambahkan `if ($host != "192.168.17.5") { return 400; }` pada blok HTTP/HTTPS Nginx, memaksa `proxy_set_header Host 192.168.17.5;`, menyembunyikan `X-Powered-By`, menambah *security headers* & HSTS (`max-age=31536000`), serta menerapkan *hardening* tambahan (`config/cors.php` ke `https://192.168.17.5`, `SESSION_SECURE_COOKIE=true` di `.env`, `expose_php=Off` & `ServerTokens Prod`/`ServerSignature Off` di `Dockerfile`), *rebuild* kontainer, `optimize:clear`, `config:cache`, dan verifikasi runtime. | Blue Team: [hardening_openredirect_tahap1.jpg](blueteam/evidence/hardening_openredirect_tahap1.jpg) · [hardening_openredirect_tahap2.jpg](blueteam/evidence/hardening_openredirect_tahap2.jpg) · [hardening_openredirect_tahap_2.jpg](blueteam/evidence/hardening_openredirect_tahap_2.jpg) · [hardening_openredirect_tahap3.jpg](blueteam/evidence/hardening_openredirect_tahap3.jpg) · [hardening_openredirect_tahap4.jpg](blueteam/evidence/hardening_openredirect_tahap4.jpg) · [hardening_openredirect_tahap55.jpg](blueteam/evidence/hardening_openredirect_tahap55.jpg) · [hardening_openredirect_tahap_6.jpg](blueteam/evidence/hardening_openredirect_tahap_6.jpg) · [hardening_openredirect_tahap6.jpg](blueteam/evidence/hardening_openredirect_tahap6.jpg) · [hardening_openredirect_tahap7.jpg](blueteam/evidence/hardening_openredirect_tahap7.jpg) · [hardening_openredirect_tahap7_2.jpg](blueteam/evidence/hardening_openredirect_tahap7_2.jpg) · [hardening_openredirect_tahap8.jpg](blueteam/evidence/hardening_openredirect_tahap8.jpg) · [hardening_openredirect_tahap9.jpg](blueteam/evidence/hardening_openredirect_tahap9.jpg) · [hardening_openredirect_tahap10.jpg](blueteam/evidence/hardening_openredirect_tahap10.jpg) |
+| **5. Verifikasi** | Mengulangi `curl -sk -i --request-target "http://100.100.100.200/latest/meta-data/" https://192.168.17.5` setelah mitigasi. Hasil: ditolak dengan `400 Bad Request` tanpa *redirect* `301` dan tanpa *banner* Apache, disertai *security headers*. | Mengonfirmasi permintaan ditolak `400`; `roborace_access.log` mencatat status `400` dengan `host="100.100.100.200"` (`06:15:31`–`06:18:56`), dan Wireshark di `eth0` hanya menampilkan sesi `TLSv1.3` yang ditutup `FIN`/`RST`. | Red Team: [open_redirect&host_reflection_evidence.jpg](redteam/evidence/open_redirect&host_reflection_evidence.jpg)<br>Blue Team: [open_redirect&host_reflection_evidence_2.jpg](blueteam/evidence/open_redirect&host_reflection_evidence_2.jpg) · [wireshark_hardening_openredirect.jpg](blueteam/evidence/wireshark_hardening_openredirect.jpg) |
+````[cite: 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 22]
 
-### B. After Hardening & Re-Test
-- **Mitigasi Blue Team:**
-  - Memperketat `/etc/nginx/sites-available/roborace` dengan pengecekan `if ($host != "192.168.17.5") { return 400; }`, menetapkan `proxy_set_header Host 192.168.17.5;`, menyembunyikan `X-Powered-By`, menambahkan *security headers* (`X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, `Content-Security-Policy`), serta memuat ulang Nginx setelah `nginx -t`.
-  - Membatasi `allowed_origins` pada `config/cors.php` ke `https://192.168.17.5` dan menambahkan `SESSION_SECURE_COOKIE=true` pada `.env`.
-  - Menerapkan *hardening* pada `Dockerfile` serta konfigurasi PHP (`expose_php=Off`, `display_errors=Off`, `display_startup_errors=Off`, `log_errors=On`) dan Apache (`ServerTokens Prod`, `ServerSignature Off`), diikuti *rebuild* kontainer serta `artisan optimize:clear` dan `artisan config:cache`.
-- **Hasil Re-Test:** Saat diuji ulang dengan `--request-target "http://100.100.100.200/latest/meta-data/"`, server menolak permintaan dengan status **`400 Bad Request`** (tidak lagi melakukan *redirect* `301` ke `100.100.100.200`) dan menyertakan *header* keamanan tambahan. Log `roborace_access.log` mencatat status `400` pada `06:15:31`–`06:18:56`, dan paket jaringan pada `eth0` tetap tampak sebagai sesi `TLSv1.3` terenkripsi.
-- **Bukti Red Team:**
-  - [open_redirect&host_reflection_evidence.jpg](redteam/evidence/open_redirect&host_reflection_evidence.jpg) — *Re-Test Open Redirect & Host Reflection via curl – Respons 400 Bad Request (After Hardening)*
-- **Bukti Blue Team:**
-  - Konfigurasi Nginx, CORS, & Session (`tahap1` s.d. `tahap55`):
-    [hardening_openredirect_tahap1.jpg](blueteam/evidence/hardening_openredirect_tahap1.jpg) ·
-    [hardening_openredirect_tahap2.jpg](blueteam/evidence/hardening_openredirect_tahap2.jpg) ·
-    [hardening_openredirect_tahap_2.jpg](blueteam/evidence/hardening_openredirect_tahap_2.jpg) ·
-    [hardening_openredirect_tahap3.jpg](blueteam/evidence/hardening_openredirect_tahap3.jpg) ·
-    [hardening_openredirect_tahap4.jpg](blueteam/evidence/hardening_openredirect_tahap4.jpg) ·
-    [hardening_openredirect_tahap55.jpg](blueteam/evidence/hardening_openredirect_tahap55.jpg)
-  - Hardening Dockerfile, PHP/Apache, Rebuild, & Verifikasi (`tahap6` s.d. `tahap10`):
-    [hardening_openredirect_tahap_6.jpg](blueteam/evidence/hardening_openredirect_tahap_6.jpg) ·
-    [hardening_openredirect_tahap6.jpg](blueteam/evidence/hardening_openredirect_tahap6.jpg) ·
-    [hardening_openredirect_tahap7.jpg](blueteam/evidence/hardening_openredirect_tahap7.jpg) ·
-    [hardening_openredirect_tahap7_2.jpg](blueteam/evidence/hardening_openredirect_tahap7_2.jpg) ·
-    [hardening_openredirect_tahap8.jpg](blueteam/evidence/hardening_openredirect_tahap8.jpg) ·
-    [hardening_openredirect_tahap9.jpg](blueteam/evidence/hardening_openredirect_tahap9.jpg) ·
-    [hardening_openredirect_tahap10.jpg](blueteam/evidence/hardening_openredirect_tahap10.jpg)
-  - [open_redirect&host_reflection_evidence_2.jpg](blueteam/evidence/open_redirect&host_reflection_evidence_2.jpg) — *Log roborace_access.log Menunjukkan Status 400 Saat Re-Test Item #3 (After Hardening)*
-  - [wireshark_hardening_openredirect.jpg](blueteam/evidence/wireshark_hardening_openredirect.jpg) — *Capture Wireshark pada eth0 Saat Re-Test Item #3 (After Hardening, 06:18:56)*
-````[cite: 38, 39, 40, 41, 42, 43]
+Pastikan nama file di `docs/redteam/evidence/` dan `docs/blueteam/evidence/` sama persis dengan *link* di tabel tersebut sebelum di-*commit* ke GitHub[cite: 1, 2, 22].
