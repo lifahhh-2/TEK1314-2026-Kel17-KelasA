@@ -123,5 +123,3 @@
   - [open_redirect&host_reflection_evidence_2.jpg](blueteam/evidence/open_redirect&host_reflection_evidence_2.jpg) — *Log roborace_access.log Menunjukkan Status 400 Saat Re-Test Item #3 (After Hardening)*
   - [wireshark_hardening_openredirect.jpg](blueteam/evidence/wireshark_hardening_openredirect.jpg) — *Capture Wireshark pada eth0 Saat Re-Test Item #3 (After Hardening, 06:18:56)*
 ````[cite: 38, 39, 40, 41, 42, 43]
-
-Sebelum di-*commit*, pastikan saja nama file di folder `docs/blueteam/evidence/` dan `docs/redteam/evidence/` sama persis dengan *link* di atas (terutama file yang sempat punya nama mirip seperti `hardening_openredirect_tahap6.jpg` vs `hardening_openredirect_tahap_6.jpg` dan `hardening_openredirect_tahap55.jpg`)[cite: 38, 43].
