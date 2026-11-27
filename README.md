@@ -1,4 +1,4 @@
-<img width="526" height="274" alt="image" src="https://github.com/user-attachments/assets/4b64a181-323c-4d46-8725-81a8932f535d" /># TEK1314-2026-Kel17-KelasA
+# TEK1314-2026-Kel17-KelasA
 Repository Mata Kuliah Keamanan Siber Kelas A – Kelompok 17 | TEK1314 2026
 **Kelompok:** Kelompok 17 – Kelas A
 - **Anggota:**
